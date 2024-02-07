@@ -34,4 +34,4 @@ Le dossier "result" contiendra:
   * un fichier csv nommé "temperature_station_active" avec les relevés de températures des stations actives
   * un fichier csv nommé "precipitation" avec les relevés de précipitations toutes stations confondues
   * un fichier csv nommé "precipitation_station_active" avec les relevés de précipitations des stations actives
-  * un fichier csv nommé 'station_meteo' la liste des stations actives et inactives présentent sur le département
+  * un fichier csv nommé "station_meteo" la liste des stations actives et inactives présentent sur le département
