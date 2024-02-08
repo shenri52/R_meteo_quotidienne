@@ -20,7 +20,7 @@
   * suppression_gitkeep.R --> script de suppression des .gitkeep
   * script en cours de développement et non appelé dans le script principal :
       * carte_station.R --> création d'une carte des stations actives et inactives
-      * graph_meteo.R --> mise en forme de graphique des températures et des précipitations par station
+      * graph_meteo.R --> graphiques des températures et des précipitations par station
 
 ## Fonctionnement
 
