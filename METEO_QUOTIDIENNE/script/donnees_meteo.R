@@ -6,7 +6,9 @@ n_files <- GET("https://www.data.gouv.fr/api/2/datasets/6569b51ae64326786e4e8e1a
            pluck("resources", "total")
 
 # Lire les informations des fichiers disponible
-files_available <- GET(glue("https://www.data.gouv.fr/api/2/datasets/6569b51ae64326786e4e8e1a/resources/?page=1&page_size={n_files}&type=main")) %>% 
+files_available <- GET(paste("https://www.data.gouv.fr/api/2/datasets/6569b4473bedf2e7abad3b72/resources/?page=1&page_size=",
+                             paste(n_files, "&type=main", sep =""),
+                             sep = "")) %>%  
                    content(as = "text", encoding = "UTF-8") %>%
                    fromJSON(flatten = TRUE) %>%
                    pluck("data") %>%
