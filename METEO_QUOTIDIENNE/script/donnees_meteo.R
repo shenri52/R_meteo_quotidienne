@@ -107,6 +107,8 @@ meteo_pluie <- meteo %>%
                          by = c("num_poste" = "num_poste"),
                          copy = FALSE)
 
+remove(meteo)
+
 # Export des données
 write.table(meteo_temp,
             file = paste("result/temperature.csv"),
