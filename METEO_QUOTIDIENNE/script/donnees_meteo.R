@@ -1,39 +1,4 @@
-#################### Téléchargement et mise en forme des données météos
-
-# Compter le nombre de fichiers météo france disponible sur data.gouv.fr
-n_files <- GET("https://www.data.gouv.fr/api/2/datasets/6569b51ae64326786e4e8e1a/") %>%
-           content() %>%
-           pluck("resources", "total")
-
-# Lire les informations des fichiers disponible
-files_available <- GET(paste("https://www.data.gouv.fr/api/2/datasets/6569b4473bedf2e7abad3b72/resources/?page=1&page_size=",
-                             paste(n_files, "&type=main", sep =""),
-                             sep = "")) %>%  
-                   content(as = "text", encoding = "UTF-8") %>%
-                   fromJSON(flatten = TRUE) %>%
-                   pluck("data") %>%
-                   as_tibble(.name_repair = make_clean_names) %>%
-                   # Ajout du code département et du type d'observations
-                   mutate(dep = str_sub(title, 18,19)) %>%
-                   mutate(type_obs = str_sub(title, 39,40)) %>%
-                   # Filtre département et du type d'observation (RR = RR-T-Vent)
-                   filter(dep == sel_dep,
-                          type_obs == "RR")
-
-# Téléchargement des fichiers
-for (i in 1:nrow(files_available))
-    {
-      
-      # Initialisation d'une variable avec l'URL de téléchargement
-      url <- as.character(files_available[i, 7]) 
-      
-      # Téléchargement du fichier
-      GET(url,
-          write_disk(paste("data/",
-                     paste(files_available[i, 2], files_available[i, 6], sep = "."),
-                     sep = ""),
-                     overwrite = TRUE))
-    }
+#################### Mise en forme des données météos
 
 # Création d'un dataframe avec les données téléchargées
 meteo <- list.files("data", full.names = TRUE) %>%
@@ -47,22 +12,6 @@ meteo <- list.files("data", full.names = TRUE) %>%
          # Conversion de la date
          mutate(aaaammjj = ymd(aaaammjj))
 
-# Création d'un dataframe avec les relevés de températures (toutes stations)
-meteo_temp <- meteo %>%
-              # Filtre des stations sans température min
-              filter(!(is.na(tn))) %>%
-              # Filtre des stations sans température max
-              filter(!(is.na(tx))) %>%               
-              # Calcul de la température moyenne si absente
-              mutate(tm = ifelse(is.na(tm), (tx + tn) / 2, tm)) %>%
-              select(num_poste, nom_usuel, aaaammjj, tn, tm, tx)
-
-# Création d'un dataframe avec les relevés de précipitations (toutes stations)
-meteo_pluie <- meteo %>%
-               # Filtre des stations météos sans précipitations
-               filter(!(is.na(rr))) %>%
-               select(num_poste, nom_usuel, aaaammjj, rr)
-
 # Regroupement des station météo
 station_meteo <- meteo %>%
                  summarise(.by= c(nom_usuel, num_poste, lat, lon),
@@ -75,28 +24,92 @@ station_meteo <- meteo %>%
                                         "active", 
                                         "inactive"))
 
+# Choix d'une ou plusieurs dates
+
+  # Afficher une boîte de dialogue pour indiquer le lecteur à analyser
+choix_date <- NULL
+
+while (is_empty(choix_date) || !(choix_date %in% c("oui", "non")))
+{
+  choix_date <- dlgInput("Voulez vous choisir une ou plusieurs dates précises ? (oui ou non)")$res
+}
+
+# Filtre des données sur les dates choisies
+if(choix_date == "oui")
+{
+  # Choix de l'année
+  donnees_dispo <- NULL
+  
+  while (is_empty(donnees_dispo))
+  {
+    donnees_dispo <- dlg_list(unique(year(meteo$aaaammjj)),
+                              multiple = TRUE,
+                              title = "Données météo quotidienne - Choix multiple possible")$res
+  }
+  
+  meteo <- meteo %>%
+           filter(year(meteo$aaaammjj) == donnees_dispo)
+  
+  #Choix du mois
+  
+  donnees_dispo <- NULL
+  
+  while (is_empty(donnees_dispo))
+  {
+    donnees_dispo <- dlg_list(unique(month(meteo$aaaammjj)),
+                              multiple = TRUE,
+                              title = "Données météo quotidienne - Choix multiple possible")$res
+  }
+  
+  meteo <- meteo %>%
+           filter(month(meteo$aaaammjj) == donnees_dispo)
+  
+  # Choix du ou des jour
+  
+  donnees_dispo <- NULL
+  
+  while (is_empty(donnees_dispo))
+  {
+    donnees_dispo <- dlg_list(unique(meteo$aaaammjj),
+                              multiple = TRUE,
+                              title = "Données météo quotidienne - Choix multiple possible")$res
+  }
+  
+  meteo <- meteo %>%
+           filter(aaaammjj %in% c(donnees_dispo))
+  
+}
+
+
 # Relevés de températures pour les stations actives
-meteo_temp_s_active <- meteo_temp %>%
-                        left_join(select(station_meteo, num_poste, statut),
-                                  by = c("num_poste" = "num_poste"),
-                                  copy = FALSE) %>%
-                          filter(statut == "active")
+meteo_temp <- meteo %>%
+              # Filtre des stations sans température min
+              filter(!(is.na(tn))) %>%
+              # Filtre des stations sans température max
+              filter(!(is.na(tx))) %>%               
+              # Calcul de la température moyenne si absente
+              mutate(tm = ifelse(is.na(tm), (tx + tn) / 2, tm)) %>%
+              select(num_poste, nom_usuel, aaaammjj, tn, tm, tx) %>%
+              rename.variable("tn", "Tmin") %>%
+              rename.variable("tm", "Tmoy") %>%
+              rename.variable("tx", "Tmax") %>%
+              left_join(select(station_meteo, num_poste, statut),
+                               by = c("num_poste" = "num_poste"),
+                               copy = FALSE)
 
 # Relevés des précipitations pour les stations actives
-meteo_pluie_s_active <- meteo_pluie %>%
-                        left_join(select(station_meteo, num_poste, statut),
-                                  by = c("num_poste" = "num_poste"),
-                                  copy = FALSE) %>%
-                        filter(statut == "active")
+meteo_pluie <- meteo %>%
+               # Filtre des stations météos sans précipitations
+               filter(!(is.na(rr))) %>%
+               select(num_poste, nom_usuel, aaaammjj, rr) %>%
+               rename.variable("rr", "Pmm") %>%
+               left_join(select(station_meteo, num_poste, statut),
+                         by = c("num_poste" = "num_poste"),
+                         copy = FALSE)
+
 # Export des données
 write.table(meteo_temp,
             file = paste("result/temperature.csv"),
-            fileEncoding = "UTF-8",
-            sep =";",
-            row.names = FALSE)
-
-write.table(meteo_temp_s_active,
-            file = paste("result/temperature_station_active.csv"),
             fileEncoding = "UTF-8",
             sep =";",
             row.names = FALSE)
@@ -107,14 +120,11 @@ write.table(meteo_pluie,
             sep =";",
             row.names = FALSE)
 
-write.table(meteo_pluie_s_active,
-            file = paste("result/precipitation_station_active.csv"),
-            fileEncoding = "UTF-8",
-            sep =";",
-            row.names = FALSE)
-
 write.table(station_meteo,
             file = paste("result/station_meteo.csv"),
             fileEncoding = "UTF-8",
             sep =";",
             row.names = FALSE)
+
+rm(list = ls())
+gc()
